@@ -79,8 +79,7 @@ import {
   QA_WHATSAPP_AGENT_MESSAGE_ACTION_UPLOAD_PROMPT_RE,
   QA_SUBAGENT_DIRECT_FALLBACK_PROMPT_RE,
   QA_SUBAGENT_DIRECT_FALLBACK_WORKER_RE,
-  QA_SUBAGENT_EMPTY_PARENT_VISIBLE_MARKER,
-  QA_SUBAGENT_EMPTY_PARENT_VISIBLE_PROMPT_RE,
+  QA_SUBAGENT_PARENT_VISIBLE_PROMPT_RE,
   QA_SUBAGENT_EMPTY_WORKER_NO_OUTPUT_PROMPT_RE,
   QA_SUBAGENT_SELF_YIELD_FOLLOW_UP_RE,
   QA_SUBAGENT_SELF_YIELD_WORKER_RE,
@@ -1343,8 +1342,7 @@ async function buildResponsesPayload(
   if (terminalCompletionCase) {
     if (!hasCompletedToolOutput && canCallSessionsSpawn) {
       const task =
-        terminalCompletionCase === "empty" &&
-        QA_SUBAGENT_EMPTY_PARENT_VISIBLE_PROMPT_RE.test(prompt)
+        terminalCompletionCase === "empty" && QA_SUBAGENT_PARENT_VISIBLE_PROMPT_RE.test(prompt)
           ? "Subagent terminal reply QA worker: empty. Return no assistant output after the write."
           : `Subagent terminal reply QA worker: ${terminalCompletionCase}.`;
       return buildToolCallEventsWithArgs("sessions_spawn", {
@@ -1355,13 +1353,12 @@ async function buildResponsesPayload(
       });
     }
     if (hasCompletedToolOutput) {
-      // End the requester turn before the delayed worker settles. The terminal
-      // result must therefore use the runtime's direct channel fallback.
-      if (
-        terminalCompletionCase === "empty" &&
-        QA_SUBAGENT_EMPTY_PARENT_VISIBLE_PROMPT_RE.test(prompt)
-      ) {
-        return buildAssistantEvents(QA_SUBAGENT_EMPTY_PARENT_VISIBLE_MARKER);
+      // A silent parent with accepted children enters implicit continuation.
+      // Direct-fallback fixtures acknowledge the spawn to finish that parent turn.
+      if (QA_SUBAGENT_PARENT_VISIBLE_PROMPT_RE.test(prompt)) {
+        return buildAssistantEvents(
+          `QA-SUBAGENT-${terminalCompletionCase.toUpperCase()}-PARENT-ACK`,
+        );
       }
       return buildAssistantEvents("NO_REPLY");
     }

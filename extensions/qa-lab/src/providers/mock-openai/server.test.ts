@@ -3680,7 +3680,7 @@ Update and merge these partial structured summaries.`,
   });
 
   it.each(["visible", "silent", "fallback", "restart", "empty"])(
-    "ends the %s parent turn before direct terminal delivery",
+    "keeps the %s parent silent when no acknowledgment is requested",
     async (terminalCase) => {
       const server = await startMockServer();
       const prompt = `Subagent terminal reply QA check: ${terminalCase}.`;
@@ -3700,24 +3700,27 @@ Update and merge these partial structured summaries.`,
     },
   );
 
-  it("acknowledges the empty worker before its intentional non-delivery", async () => {
-    const server = await startMockServer();
-    const payload = await expectNonStreamingResponsesJson(server, {
-      tools: [SESSIONS_SPAWN_TOOL, SESSIONS_YIELD_TOOL],
-      input: [
-        makeUserInput(
-          "Subagent terminal reply QA check: empty. Reply to the requester after spawning.",
-        ),
-        makeToolOutputWithCallId(
-          "call_mock_sessions_spawn_1",
-          JSON.stringify({ status: "accepted", runId: "run-empty" }),
-        ),
-      ],
-    });
+  it.each(["visible", "silent", "fallback", "restart", "empty"])(
+    "acknowledges the %s worker before direct terminal delivery",
+    async (terminalCase) => {
+      const server = await startMockServer();
+      const payload = await expectNonStreamingResponsesJson(server, {
+        tools: [SESSIONS_SPAWN_TOOL, SESSIONS_YIELD_TOOL],
+        input: [
+          makeUserInput(
+            `Subagent terminal reply QA check: ${terminalCase}. Reply to the requester after spawning.`,
+          ),
+          makeToolOutputWithCallId(
+            "call_mock_sessions_spawn_1",
+            JSON.stringify({ status: "accepted", runId: `run-${terminalCase}` }),
+          ),
+        ],
+      });
 
-    expect(outputItems(payload).some((item) => item.type === "function_call")).toBe(false);
-    expect(outputText(payload)).toBe("QA-SUBAGENT-EMPTY-PARENT-ACK");
-  });
+      expect(outputItems(payload).some((item) => item.type === "function_call")).toBe(false);
+      expect(outputText(payload)).toBe(`QA-SUBAGENT-${terminalCase.toUpperCase()}-PARENT-ACK`);
+    },
+  );
 
   it.each([
     ["visible", "NO_REPLY"],
